@@ -1,0 +1,10 @@
+.ipynb_checkpoints
+*.json
+*.csv
+*.pyc
+*.aux
+*.out
+*.log
+*.gz
+*.bbl
+*.blg

@@ -1,0 +1,187 @@
+\documentclass[a4paper]{article}
+
+%% Language and font encodings
+\usepackage[english]{babel}
+\usepackage{algpseudocode}
+\usepackage[utf8x]{inputenc}
+\usepackage{fixltx2e}
+\usepackage{footnote}
+\usepackage[T1]{fontenc}
+\usepackage{graphicx}
+
+%% Sets page size and margins
+\usepackage[a4paper,top=2cm,bottom=2cm,left=3cm,right=3cm,marginparwidth=1.75cm]{geometry}
+
+%% Useful packages
+\usepackage[colorlinks=true, allcolors=blue]{hyperref}
+
+%% Title and author
+\title{AMP LAB TASK 2\\
+Agreeement between AcousticBrainz vs MSD data}
+
+\author{Marc Siquier Peñafort}
+\date{\today}
+
+%% Document
+\begin{document}
+\maketitle
+All the code for this task can be found in: \url{https://github.com/Marcsiq2/aspma-lab2}
+\section{Exploring Data}
+
+For this task we'll have four different datasets: \textbf{AB\_LOWLEVEL} that contains all low\_level features from \textit{AcousticBrainz} (AB) indexed by \texttt{mbid} (Music Brainz ID). \textbf{AB\_BEATS} contains all the beats positions from AB, also indexed by \texttt{mbid}. Then we have \textbf{MSD\_SUMMARY} that contains all low\_level features and beats positions and beats confidence from  \textit{Milliong Song Database} (MSD) indexed by \texttt{msd\_id} (Million Song Database ID). \textbf{MSD\_BEATS} contains all the beats positions and beat confidence from msd, also indexed by \texttt{msd\_id}. Finally in order to map \texttt{mbid} and \texttt{msd\_id} we have a  dataset \textbf{MBID\_MSD} that contains the mapping and also the song name.
+
+First step in order to be able to evaluate all the data is to explore it and pre-process it, so, first of all, I checked the number of instances in each database and figured out that there are quite different.
+
+\begin{table}[ht!]
+\centering
+\begin{tabular}{lc}
+\textbf{Database} & \textbf{Instances} \\ \hline 
+AB\_LOWLEVEL & 2352902 \\
+AB\_BEATS & 778211 \\
+MSD\_SUMMARY & 237962 \\
+MBID\_MSD & 282046 \\ \hline
+\end{tabular}
+\caption{Number of Instances}
+\label{tab:num}
+\end{table}
+
+From this table~\ref{tab:num} we see that we first need to obtain the common instances from all dataset: Instances that are both in AB and in MSD and that the mapping is in MBID\_MSD dataset. Moreover I will do a duration check for both AB and MSD instances so we are sure that the song is the same. For this duration check we will set a duration precision window percentage that will allow some precision error to the metric.
+
+\begin{table}[ht!]
+\centering
+\begin{tabular}{cc}
+\textbf{Duration pw} & \textbf{Common Instances} \\ \hline 
+0.50 & 268749 \\
+0.40 & 263293 \\
+0.20 & 244758 \\
+0.10 & 227137 \\
+\textbf{0.05} & \textbf{212147} \\
+0.01 & 161069 \\ \hline
+\end{tabular}
+\caption{Common Instances}
+\label{tab:com}
+\end{table}
+
+As we can see from table~\ref{tab:com} in some cases, the number of common instances is larger than the number of instances in the MSD\_SUMMARY database. This is because some AB instances have more than one corresponding instance in MSD\_SUMMARY dataset. From all this possible common instances we will take for the next experiments a duration precision window of 0.05 (5\% duration difference) with a total common instances of 212147.
+
+\section{AB bpm vs MSD tempo}
+In order to evaluate AB bpm vs MSD tempo we will consider two evaluation metrics:
+
+\subsection{Accuracy 1} 
+The percentage of AB bpm estimates within 4\% (the precision window) of the MSD tempo, or vice versa. In order to compute this, I implemented a simple evaluation function as it can be seen in the following pseudo-code:
+
+\begin{algorithmic}
+\Function{$evaluate\_bpm$}{$bpm_1, bpm_2, p_w$} 
+\State $diff := |bpm_1 - bpm_2|$
+\If {$diff\leq (bpm_2*p_w)$}
+    \Return True
+\Else
+    \Return False
+\EndIf
+\EndFunction
+\end{algorithmic}
+
+Using this simple metric and different precision windows I came up with a BPM accuracy 1 results table~\ref{tab:bpm1} comparing both MSD as ground truth and AB as ground truth. From this table we can see that with a precision window of 4\% we obtain an accuracy of 64\% for both ground truths. As we allow more error in the estimation we can see as the accuracy also raises.
+
+\begin{table}[ht!]
+\centering
+\begin{tabular}{ccccc}
+
+ & \multicolumn{2}{c}{\textbf{MSD as GT}} & \multicolumn{2}{c}{\textbf{AB as GT}}  \\ \cline{2-5}
+\textbf{Precision window}& Correct instances & Accuracy & Correct instances & Accuracy \\ \hline
+0.01& 114814 & 0.5412 & 114803 & 0.5411 \\ 
+\textbf{0.04}& 136550 & 0.6437 & 136571 & 0.6438 \\ 
+0.10& 144487 & 0.6811 & 144517 & 0.6812 \\ 
+0.25& 153613 & 0.7241 & 154075 & 0.7263 \\ 
+0.50& 180196 & 0.8494 & 182860 & 0.8619 \\ \hline
+\end{tabular}
+\caption{BPM Accuracy 1}
+\label{tab:bpm1}
+\end{table}
+
+\subsection{Accuracy 2} 
+The percentage of AB bpm estimates within 4\% of either the MSD tempo, or half, double, three times or one third of the MSD tempo. In order to compute this accuracy we will feed into accuracy 1 \textit{evaluate\_bpm} metric algorithm the MSD tempo value and the AB bpm itself, multiplied by two, by three and divided by two and by three. 
+
+\begin{algorithmic}
+\Function{$evaluate\_bpm2$}{$bpm_1, bpm_2, p_w$} 
+\If {$evaluate\_bpm(bpm_1, bpm_2, p_w)$}
+    \Return True
+\ElsIf {$evaluate\_bpm(bpm_1*2, bpm_2, p_w)$}
+    \Return True
+\ElsIf {$evaluate\_bpm(bpm_1*3, bpm_2, p_w)$}
+    \Return True
+\ElsIf {$evaluate\_bpm(bpm_1/2, bpm_2, p_w)$}
+    \Return True
+\ElsIf {$evaluate\_bpm(bpm_1/3, bpm_2, p_w)$}
+    \Return True
+\Else
+	\Return False
+\EndIf
+\EndFunction
+\end{algorithmic}
+
+Using this enhanced bpm metric and different precision windows we obtain the BPM accuracy 2 table~\ref{tab:BPM2} comparing also both MSD as ground truth and AB as ground truth. From this table we can see that with a precision window of 4\% we obtain an accuracy of 77\% for both ground truths. This value is 12\% higher than with accuracy 1 metric so we see that there are a lot of subdivision errors when computing bpm.
+
+\begin{table}[ht!]
+\centering
+\begin{tabular}{ccccc}
+
+ & \multicolumn{2}{c}{\textbf{MSD as GT}} & \multicolumn{2}{c}{\textbf{AB as GT}}  \\ \cline{2-5}
+\textbf{Precision window}& Correct instances & Accuracy & Correct instances & Accuracy \\ \hline
+0.01& 134216 & 0.6327 & 134193 & 0.6325 \\ 
+\textbf{0.04}& 162810 & 0.7674 & 162831 & 0.7675 \\ 
+0.10& 174284 & 0.8215 & 174252 & 0.8214 \\ 
+0.25& 193427 & 0.9118 & 192980 & 0.9097 \\ 
+0.50& 211680 & 0.9978 & 211760 & 0.9982 \\ \hline
+\end{tabular}
+\caption{BPM Accuracy 2}
+\label{tab:BPM2}
+\end{table}
+
+\section{AB key\_key/key\_scale vs key/mode}
+In order to evaluate key results from AB and MSD a preprocessing stage was necessary for MSD data in order to format it in the correct way for the evaluation part. For evaluation I used the function \textit{key.weighted\_score} from \textbf{mir\_eval} Python library~\footnote{\url{https://craffel.github.io/mir_eval/}} which computes a heuristic score weighted according to the relationship of the reference and estimated key. I also compared data in both ways, MSD as ground truth and AB as ground truth and as we can see in the results (table~\ref{tab:key}. Depending on the \textit{key\_confidence} value I discard all key values from MSD dataset that are below the threshold.
+\begin{table}[ht!]
+\centering
+\begin{tabular}{cccc}
+\textbf{Key confidence} & \textbf{Total instances} & \textbf{MSD as GT} & \textbf{AB as GT}  \\ \hline 
+0.9 & 1239 & 0.7881 & 0.7490 \\ 
+0.7 & 19128 & 0.6870 & 0.6870 \\
+0.6 & 45100 & 0.6248 & 0.5950 \\
+0.5 & 79185 & 0.5617 & 0.5373 \\
+0.3 & 140231 & 0.4796 & 0.4635 \\ 
+0.0 & 212147 & 0.4103 & 0.4018 \\ \hline
+
+
+\end{tabular}
+\caption{Key evaluation}
+\label{tab:key}
+\end{table}
+
+\section{AB beats\_position vs MSD beats\_start}
+For this last subtask we will evaluate how both datasets (AB and MSD) correlate estimating beats positions. From MSD data we have also the \texttt{beat\_confidence} for each beat so we can filter this beats in order to consider different confidence levels in evaluation.
+I also did a common preprocessing stage which consists in removing the beats present in the first 5 seconds.
+
+\textbf{Mir\_eval} library has been also used in order to score beats positions. In particular, I used \texttt{f\_measure} function present in the beat module from the library. The results in table~\ref{tab:beats} show the average f\_measure for all instances depending on the confidence threshold and also considering GT and AB as ground truth. 
+
+\textbf{NOTE:} This task is very cpu and memory consuming, so we need to restart python notebook before running it. Wall time in the table~\ref{tab:beats} shows the real time that elapses from start to end of the task being performed. As we increase MSD beats confidence, we need to compare more beats so wall time will also increase.
+
+\begin{table}[ht!]
+\centering
+\begin{tabular}{cccc}
+\textbf{MSD Beats Confidence} & \textbf{MSD as GT F-score} & \textbf{AB as GT F-score} & Wall time\footnotemark \\ \hline 
+0.9 & 0.0181 & 0.0181 & 4min 22s \\	
+0.8 & 0.0436 & 0.0436 & 4min 51s \\ 
+0.7 & 0.0805 & 0.0805 & 5min 58s \\
+0.6 & 0.1729 & 0.1729 & 9min 48s \\ 
+0.3 & 0.2465 & 0.2465 & 15min 32s \\\hline
+\end{tabular}
+\caption{Beats Positions}
+\label{tab:beats}
+\end{table}
+\footnotetext{Intel(R) Core(TM) i7-5600U CPU @ 2.60GHz, 4096KB CPU cache, 16GB RAM}
+
+
+
+
+
+\end{document}
